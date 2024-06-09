@@ -1,0 +1,14 @@
+1번 -> cd flask_project/myflask
+(flask) C:\Users\user\Desktop\flask_project\myflask> 이 상황에서 실행해야함
+
+2번 ->  flask --app app.py db init
+        flask --app app.py db migrate
+        flask --app app.py db upgrade
+
+* QC는 flask 세팅용 
+
+3번 -> python store_data.py [실행시킬 스크립트]
+
+4번 -> python app.py [app 업데이트]
+
+5번 -> http://localhost:5000
