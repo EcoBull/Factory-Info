@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database and Chart Display</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        #data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        #data-table th, #data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        #data-table th {
+            background-color: #f2f2f2;
+        }
+        #chart-container {
+            width: 80%;
+            margin: auto;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.9);
+        }
+        .modal-content {
+            margin: auto;
+            display: block;
+            width: 80%;
+            max-width: 700px;
+            animation-name: zoom;
+            animation-duration: 0.6s;
+        }
+        .close {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        .close:hover,
+        .close:focus {
+            color: #bbb;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        @keyframes zoom {
+            from {transform:scale(0)}
+            to {transform:scale(1)}
+        }
+    </style>
+</head>
+<body>
+    <h1>Database and Chart Display</h1>
+
+    <div>
+        <h2>Database Content</h2>
+        <table id="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>QC</th>
+                    <th>Image</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in data %}
+                    <tr>
+                        <td>{{ item.id }}</td>
+                        <td>{{ item.QC }}</td>
+                        <td><button onclick="displayImage('{{ item.img }}')">View Image</button></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div id="chart-container">
+        <h2>Judgement Chart</h2>
+        <canvas id="judgement-chart" width="350" height="200"></canvas>
+    </div>
+
+    <!-- The Modal -->
+    <div id="myModal" class="modal">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="img01">
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const updateInterval = 3000; // 3초마다 업데이트
+
+            function fetchDataAndUpdate() {
+                fetch('/api/get_data/')
+                    .then(response => response.json())
+                    .then(data => {
+                        updateTable(data);
+                        updateChart(data);
+                    })
+                    .catch(error => console.error('Error fetching data:', error));
+            }
+
+            function updateTable(data) {
+                const tableBody = document.querySelector("#data-table tbody");
+                tableBody.innerHTML = ''; // 기존 데이터를 지웁니다
+
+                data.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.id}</td>
+                        <td>${item.QC}</td>
+                        <td><button onclick="displayImage('${item.img}')">View Image</button></td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            }
+
+            function updateChart(data) {
+                const passCount = data.filter(item => item.QC === 'PASS').length;
+                const failCount = data.filter(item => item.QC === 'FAIL').length;
+
+                if (window.judgementChart) {
+                    window.judgementChart.data.datasets[0].data = [passCount, failCount];
+                    window.judgementChart.update();
+                } else {
+                    const ctx = document.getElementById('judgement-chart').getContext('2d');
+                    window.judgementChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Pass', 'Fail'],
+                            datasets: [{
+                                label: '',
+                                data: [passCount, failCount],
+                                backgroundColor: ['blue', 'red']
+                            }]
+                        },
+                        options: {
+                            plugins: {
+                                legend: {
+                                    display: false // 레전드를 숨깁니다
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            // 초기 데이터 로드
+            fetchDataAndUpdate();
+
+            // 일정 간격으로 데이터 업데이트
+            setInterval(fetchDataAndUpdate, updateInterval);
+        });
+
+        // Upload an image
+        function uploadImage() {
+            const imageInput = document.getElementById('imageInput');
+            if (!imageInput.files || !imageInput.files[0]) {
+                alert('Please select an image to upload.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', imageInput.files[0]);
+
+            fetch('/api/upload_image/', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.filename) {
+                    alert("Image uploaded successfully");
+                    // Optionally, update the table to show the new image
+                } else {
+                    alert("Image upload failed");
+                }
+            })
+            .catch(error => console.error('Error uploading image:', error));
+        }
+
+        // Modal Image
+        function displayImage(imgSrc) {
+            const modal = document.getElementById("myModal");
+            const modalImg = document.getElementById("img01");
+            modal.style.display = "block";
+            modalImg.src = imgSrc;
+
+            // When the user clicks on <span> (x), close the modal
+            const span = document.getElementsByClassName("close")[0];
+            span.onclick = function() {
+                modal.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>
